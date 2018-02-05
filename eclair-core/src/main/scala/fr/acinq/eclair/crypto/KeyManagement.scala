@@ -17,34 +17,15 @@ import fr.acinq.eclair.wire.AnnouncementSignatures
 
 object KeyManager {
   val nodeKeyPath = DeterministicWallet.hardened(46) :: DeterministicWallet.hardened(0) :: Nil
-
-  def readOrCreateEntropy(datadir: File): BinaryData = {
-    val entropyPath = new File(datadir, "seed.dat")
-    val entropy: BinaryData = entropyPath.exists() match {
-      case true => Files.readAllBytes(entropyPath.toPath)
-      case false =>
-        val seed = randomKey.toBin
-        Files.write(entropyPath.toPath, seed)
-        seed
-    }
-    entropy
-  }
 }
 
 /**
   * This class manages secrets and private keys.
   * It exports points and public keys, and provides signing methods
   *
-  * @param entropy secret entropy from which keys will be derived
+  * @param seed seed from which keys will be derived
   */
-class KeyManager(entropy: BinaryData) {
-  def this(datadir: File) = this(KeyManager.readOrCreateEntropy(datadir))
-
-  // entropy -> mnemonics
-  // mnemonics + passphrase -> seed
-  // seed -> BIP32 master key
-  val mnemonicCode = MnemonicCode.toMnemonics(entropy)
-  val seed = MnemonicCode.toSeed(mnemonicCode, "")
+class KeyManager(seed: BinaryData) {
   val master = DeterministicWallet.generate(seed)
   val nodeKey = DeterministicWallet.derivePrivateKey(master, KeyManager.nodeKeyPath)
   val nodeId = nodeKey.publicKey

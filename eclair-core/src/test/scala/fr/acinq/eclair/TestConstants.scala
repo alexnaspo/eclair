@@ -45,7 +45,7 @@ object TestConstants {
       smartfeeNBlocks = 3,
       feeBaseMsat = 546000,
       feeProportionalMillionth = 10,
-      reserveToFundingRatio = 0.01, // note: not used (overriden below)
+      reserveToFundingRatio = 0.01, // note: not used (overridden below)
       maxReserveToFundingRatio = 0.05,
       channelsDb = new SqliteChannelsDb(sqlite),
       peersDb = new SqlitePeersDb(sqlite),
@@ -99,7 +99,7 @@ object TestConstants {
       smartfeeNBlocks = 3,
       feeBaseMsat = 546000,
       feeProportionalMillionth = 10,
-      reserveToFundingRatio = 0.01, // note: not used (overriden below)
+      reserveToFundingRatio = 0.01, // note: not used (overridden below)
       maxReserveToFundingRatio = 0.05,
       channelsDb = new SqliteChannelsDb(sqlite),
       peersDb = new SqlitePeersDb(sqlite),

@@ -2,6 +2,7 @@ package fr.acinq.eclair
 
 import java.io.File
 import java.net.InetSocketAddress
+import java.nio.file.Files
 
 import akka.actor.{ActorRef, ActorSystem, Props, SupervisorStrategy}
 import akka.http.scaladsl.Http
@@ -31,15 +32,34 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
 /**
+  * Setup eclair from a datadir.
+  * <p>
   * Created by PM on 25/01/2016.
+  *
+  * @param datadir  directory where eclair-core will write/read its data
+  * @param overrideDefaults
+  * @param actorSystem
+  * @param seed_opt optional seed, if set eclair will use it instead of generating one and won't create a seed.dat file.
   */
-class Setup(datadir: File, overrideDefaults: Config = ConfigFactory.empty(), actorSystem: ActorSystem = ActorSystem()) extends Logging {
+class Setup(datadir: File, overrideDefaults: Config = ConfigFactory.empty(), actorSystem: ActorSystem = ActorSystem(), seed_opt: Option[BinaryData] = None) extends Logging {
 
   logger.info(s"hello!")
   logger.info(s"version=${getClass.getPackage.getImplementationVersion} commit=${getClass.getPackage.getSpecificationVersion}")
 
   val config: Config = NodeParams.loadConfiguration(datadir, overrideDefaults)
-  val keyManager = new KeyManager(datadir)
+  val seed: BinaryData = seed_opt match {
+    case Some(s) => s
+    case None =>
+      val seedPath = new File(datadir, "seed.dat")
+      seedPath.exists() match {
+        case true => Files.readAllBytes(seedPath.toPath)
+        case false =>
+          val seed = randomKey.toBin
+          Files.write(seedPath.toPath, seed)
+          seed
+      }
+  }
+  val keyManager = new KeyManager(seed)
   val nodeParams: NodeParams = NodeParams.makeNodeParams(datadir, config, keyManager.nodeKey)
   val chain: String = config.getString("chain")
 
@@ -142,10 +162,11 @@ class Setup(datadir: File, overrideDefaults: Config = ConfigFactory.empty(), act
     val wallet = bitcoin match {
       case Bitcoind(bitcoinClient) => new BitcoinCoreWallet(bitcoinClient.rpcClient)
       case Bitcoinj(bitcoinj) => new BitcoinjWallet(bitcoinj.initialized.map(_ => bitcoinj.wallet()))
-      case Electrum(electrumClient) =>
-        val electrumSeedPath = new File(datadir, "electrum_seed.dat")
-        val electrumWallet = system.actorOf(ElectrumWallet.props(electrumSeedPath, electrumClient, ElectrumWallet.WalletParameters(Block.RegtestGenesisBlock.hash, allowSpendUnconfirmed = true)), "electrum-wallet")
-        new ElectrumEclairWallet(electrumWallet)
+      case Electrum(electrumClient) => seed_opt match {
+        case Some(seed) => val electrumWallet = system.actorOf(ElectrumWallet.props(seed, electrumClient, ElectrumWallet.WalletParameters(Block.TestnetGenesisBlock.hash)), "electrum-wallet")
+          new ElectrumEclairWallet(electrumWallet)
+        case _ => throw new RuntimeException("electrum wallet requires a seed to set up")
+      }
     }
     wallet.getFinalAddress.map {
       case address => logger.info(s"initial wallet address=$address")
