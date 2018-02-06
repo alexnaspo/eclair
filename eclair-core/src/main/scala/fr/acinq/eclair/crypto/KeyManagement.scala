@@ -123,11 +123,4 @@ class KeyManager(seed: BinaryData) {
     val bitcoinSig = Crypto.encodeSignature(Crypto.sign(witness, fundingPrivateKey(channelNumber).privateKey)) :+ 1.toByte
     (nodeSig, bitcoinSig)
   }
-
-  def makeAnnouncementSignatures(nodeParams: NodeParams, commitments: Commitments, shortChannelId: Long) = {
-    // TODO: empty features
-    val features = BinaryData("")
-    val (localNodeSig, localBitcoinSig) = signChannelAnnouncement(commitments.localParams.channelNumber, nodeParams.chainHash, shortChannelId, commitments.remoteParams.nodeId, commitments.remoteParams.fundingPubKey, features)
-    AnnouncementSignatures(commitments.channelId, shortChannelId, localNodeSig, localBitcoinSig)
-  }
 }
