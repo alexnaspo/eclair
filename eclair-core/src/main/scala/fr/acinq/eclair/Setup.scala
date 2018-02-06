@@ -60,7 +60,7 @@ class Setup(datadir: File, overrideDefaults: Config = ConfigFactory.empty(), act
       }
   }
   val keyManager = new KeyManager(seed)
-  val nodeParams: NodeParams = NodeParams.makeNodeParams(datadir, config, keyManager.nodeKey)
+  val nodeParams: NodeParams = NodeParams.makeNodeParams(datadir, config, keyManager)
   val chain: String = config.getString("chain")
 
   // early checks
@@ -180,7 +180,7 @@ class Setup(datadir: File, overrideDefaults: Config = ConfigFactory.empty(), act
     val relayer = system.actorOf(SimpleSupervisor.props(Relayer.props(nodeParams, register, paymentHandler), "relayer", SupervisorStrategy.Resume))
     val router = system.actorOf(SimpleSupervisor.props(Router.props(nodeParams, watcher), "router", SupervisorStrategy.Resume))
     val authenticator = system.actorOf(SimpleSupervisor.props(Authenticator.props(nodeParams), "authenticator", SupervisorStrategy.Resume))
-    val switchboard = system.actorOf(SimpleSupervisor.props(Switchboard.props(nodeParams, authenticator, watcher, router, relayer, wallet, keyManager), "switchboard", SupervisorStrategy.Resume))
+    val switchboard = system.actorOf(SimpleSupervisor.props(Switchboard.props(nodeParams, authenticator, watcher, router, relayer, wallet), "switchboard", SupervisorStrategy.Resume))
     val server = system.actorOf(SimpleSupervisor.props(Server.props(nodeParams, authenticator, new InetSocketAddress(config.getString("server.binding-ip"), config.getInt("server.port")), Some(tcpBound)), "server", SupervisorStrategy.Restart))
     val paymentInitiator = system.actorOf(SimpleSupervisor.props(PaymentInitiator.props(nodeParams.privateKey.publicKey, router, register), "payment-initiator", SupervisorStrategy.Restart))
 
