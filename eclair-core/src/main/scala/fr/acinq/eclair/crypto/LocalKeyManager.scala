@@ -1,21 +1,14 @@
 package fr.acinq.eclair.crypto
 
-import java.io.File
-import java.nio.file.Files
-
-import fr.acinq.bitcoin.Crypto.{Point, PrivateKey, PublicKey, Scalar}
-import fr.acinq.bitcoin.DeterministicWallet._
-import fr.acinq.bitcoin.{BinaryData, Crypto, DeterministicWallet, MnemonicCode}
-import DeterministicWallet.derivePrivateKey
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
-import fr.acinq.eclair.{NodeParams, randomKey}
-import fr.acinq.eclair.channel.Commitments
+import fr.acinq.bitcoin.Crypto.{Point, PublicKey, Scalar}
+import fr.acinq.bitcoin.DeterministicWallet.{derivePrivateKey, _}
+import fr.acinq.bitcoin.{BinaryData, Crypto, DeterministicWallet}
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.transactions.Transactions
 import fr.acinq.eclair.transactions.Transactions.TransactionWithInputInfo
-import fr.acinq.eclair.wire.AnnouncementSignatures
 
-object KeyManager {
+object LocalKeyManager {
   val nodeKeyPath = DeterministicWallet.hardened(46) :: DeterministicWallet.hardened(0) :: Nil
 }
 
@@ -25,25 +18,25 @@ object KeyManager {
   *
   * @param seed seed from which keys will be derived
   */
-class KeyManager(seed: BinaryData) {
-  val master = DeterministicWallet.generate(seed)
-  val nodeKey = DeterministicWallet.derivePrivateKey(master, KeyManager.nodeKeyPath)
-  val nodeId = nodeKey.publicKey
+class LocalKeyManager(seed: BinaryData) extends KeyManager {
+  private val master = DeterministicWallet.generate(seed)
 
-  val privateKeys: LoadingCache[KeyPath, ExtendedPrivateKey] = CacheBuilder.newBuilder()
+  override val nodeKey = DeterministicWallet.derivePrivateKey(master, LocalKeyManager.nodeKeyPath)
+  override val nodeId = nodeKey.publicKey
+
+  private val privateKeys: LoadingCache[KeyPath, ExtendedPrivateKey] = CacheBuilder.newBuilder()
     .maximumSize(6 * 200) // 6 keys per channel * 200 channels
     .build[KeyPath, ExtendedPrivateKey](new CacheLoader[KeyPath, ExtendedPrivateKey] {
     override def load(keyPath: KeyPath): ExtendedPrivateKey = derivePrivateKey(master, keyPath)
   })
 
-  val publicKeys: LoadingCache[KeyPath, ExtendedPublicKey] = CacheBuilder.newBuilder()
+  private val publicKeys: LoadingCache[KeyPath, ExtendedPublicKey] = CacheBuilder.newBuilder()
     .maximumSize(6 * 200) // 6 keys per channel * 200 channels
     .build[KeyPath, ExtendedPublicKey](new CacheLoader[KeyPath, ExtendedPublicKey] {
     override def load(keyPath: KeyPath): ExtendedPublicKey = publicKey(privateKeys.get(keyPath))
   })
 
-  def channelKeyPath(channelNumber: Long, index: Long): List[Long] = KeyManager.nodeKeyPath ::: channelNumber :: index :: Nil
-
+  private def channelKeyPath(channelNumber: Long, index: Long): List[Long] = LocalKeyManager.nodeKeyPath ::: channelNumber :: index :: Nil
 
   private def fundingPrivateKey(channelNumber: Long) = privateKeys.get(channelKeyPath(channelNumber, 0))
 
@@ -57,19 +50,19 @@ class KeyManager(seed: BinaryData) {
 
   private def shaSeed(channelNumber: Long) = Crypto.sha256(privateKeys.get(channelKeyPath(channelNumber, 5)).privateKey.toBin)
 
-  def fundingPublicKey(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 0))
+  override def fundingPublicKey(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 0))
 
-  def revocationPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 1))
+  override def revocationPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 1))
 
-  def paymentPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 2))
+  override def paymentPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 2))
 
-  def delayedPaymentPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 3))
+  override def delayedPaymentPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 3))
 
-  def htlcPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 4))
+  override def htlcPoint(channelNumber: Long) = publicKeys.get(channelKeyPath(channelNumber, 4))
 
-  def commitmentSecret(channelNumber: Long, index: Long) = Generators.perCommitSecret(shaSeed(channelNumber), index)
+  override def commitmentSecret(channelNumber: Long, index: Long) = Generators.perCommitSecret(shaSeed(channelNumber), index)
 
-  def commitmentPoint(channelNumber: Long, index: Long) = Generators.perCommitPoint(shaSeed(channelNumber), index)
+  override def commitmentPoint(channelNumber: Long, index: Long) = Generators.perCommitPoint(shaSeed(channelNumber), index)
 
   /**
     *
